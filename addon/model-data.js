@@ -49,6 +49,11 @@ export default class M3ModelData {
     this._schema = SchemaManager;
     this.isDestroyed = false;
     this.reset();
+
+    this.baseModelName = this._schema.computeBaseModelName(this.modelName);
+
+    // TODO we may not have ID yet?
+    this.baseModelData = this.baseModelName ? store.modelDataFor(this.baseModelName, id) : null;
   }
 
   // PUBLIC API
@@ -87,8 +92,8 @@ export default class M3ModelData {
   }
 
   reset() {
-    this._data = null;
-    this._attributes = null;
+    this.__data = null;
+    this.__attributes = null;
     this.__inFlightAttributes = null;
     this.__nestedModelsData = null;
   }
@@ -266,14 +271,13 @@ export default class M3ModelData {
   }
 
   get _data() {
+    if (this.baseModelData !== null) {
+      return this.baseModelData._data;
+    }
     if (this.__data === null) {
       this.__data = Object.create(null);
     }
     return this.__data;
-  }
-
-  set _data(v) {
-    this.__data = v;
   }
 
   get _inFlightAttributes() {
