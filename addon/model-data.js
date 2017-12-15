@@ -53,7 +53,13 @@ export default class M3ModelData {
     this.baseModelName = this._schema.computeBaseModelName(this.modelName);
 
     // TODO we may not have ID yet?
-    this.baseModelData = this.baseModelName ? store.modelDataFor(this.baseModelName, id) : null;
+    this.__projections = null;
+    if (this.baseModelName) {
+      // TODO we may not have ID yet?
+      this._initBaseModelData(this.baseModelName, id);
+    } else {
+      this.baseModelData = null;
+    }
   }
 
   // PUBLIC API
@@ -72,6 +78,10 @@ export default class M3ModelData {
     if (this.__attributes) {
       // only do if we have attribute changes
       this._updateChangedAttributes();
+    }
+
+    if (calculateChange) {
+      this._notifyProjectionProperties(changedKeys);
     }
 
     if (data.id) {
@@ -149,8 +159,10 @@ export default class M3ModelData {
 
     // TODO This only iterates over nested models if we have updates for them
     emberAssign(this._data, this._inFlightAttributes);
+    // TODO Must notify projections for changes caused by inflight attributes
     if (data) {
       changedKeys = this._mergeUpdates(data, commitDataAndNotify);
+      this._notifyProjectionProperties(changedKeys);
     }
 
     this._inFlightAttributes = null;
@@ -298,6 +310,27 @@ export default class M3ModelData {
     return this.__nestedModelsData;
   }
 
+  get _projections() {
+    if (this.baseModelData !== null) {
+      return this.baseModelData._projections;
+    }
+    return this.__projections;
+  }
+
+  _initBaseModelData(modelName, id) {
+    this.baseModelData = this.store.modelDataFor(modelName, id);
+    this.baseModelData._registerProjection(this);
+  }
+
+  _registerProjection(modelData) {
+    if (!this.__projections) {
+      // we ensure projections contains the base as well
+      // so we have complete list of all related model datas
+      this.__projections = [this];
+    }
+    this.__projections.push(modelData);
+  }
+
   /**
    *
    * @param updates
@@ -371,6 +404,17 @@ export default class M3ModelData {
       );
     }
     Ember.endPropertyChanges();
+  }
+
+  _notifyProjectionProperties(changedKeys) {
+    let projections = this._projections;
+    if (projections) {
+      for (let i = 0; i < projections.length; i++) {
+        if (projections[i] !== this) {
+          projections[i]._notifyRecordProperties(changedKeys);
+        }
+      }
+    }
   }
 
   /*
